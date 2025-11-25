@@ -337,6 +337,7 @@
                         } catch(_) {}
                     });
                 }
+
             } catch(_) {}
         });
     }
@@ -1908,7 +1909,7 @@
     // Function to update button text with current translations
     function updateButtonTranslations() {
         try {
-            // Update Restart Steam button
+            // Update Restart Steam button (top)
             const restartBtn = document.querySelector('.luatools-restart-button');
             if (restartBtn) {
                 const restartText = lt('Restart Steam');
@@ -1919,8 +1920,18 @@
                     rspan.textContent = restartText;
                 }
             }
-            
-            // Update Add via LuaTools button
+
+            // Update Restart Steam button (BP)
+            const restartBtnBP = document.querySelector('.luatools-restart-button-bp');
+            if (restartBtnBP) {
+                const restartText = lt('Restart Steam');
+                const rspanBP = restartBtnBP.querySelector('span');
+                if (rspanBP) {
+                    rspanBP.textContent = restartText;
+                }
+            }
+
+            // Update Add via LuaTools button (top)
             const luatoolsBtn = document.querySelector('.luatools-button');
             if (luatoolsBtn) {
                 const addViaText = lt('Add via LuaTools');
@@ -1929,6 +1940,16 @@
                 const span = luatoolsBtn.querySelector('span');
                 if (span) {
                     span.textContent = addViaText;
+                }
+            }
+
+            // Update Add via LuaTools button (BP)
+            const luatoolsBtnBP = document.querySelector('.luatools-button-bp');
+            if (luatoolsBtnBP) {
+                const addViaText = lt('Add via LuaTools');
+                const spanBP = luatoolsBtnBP.querySelector('span');
+                if (spanBP) {
+                    spanBP.textContent = addViaText;
                 }
             }
         } catch(err) {
@@ -1948,14 +1969,192 @@
             window.__LuaToolsIconInserted = false;
             window.__LuaToolsPresenceCheckInFlight = false;
             window.__LuaToolsPresenceCheckAppId = undefined;
+
+            // Also reset Big Picture buttons flags
+            window.__LuaToolsBPButtonsInserted = false;
+            window.__LuaToolsPresenceCheckInFlightBP = false;
+            window.__LuaToolsPresenceCheckAppIdBP = undefined;
+
+            // Remove existing Big Picture buttons so they can be re-created
+            const existingBPRestart = document.querySelector('[data-luatools-bp="restart"]');
+            if (existingBPRestart) existingBPRestart.remove();
+
+            const existingBPIcon = document.querySelector('[data-luatools-bp="icon"]');
+            if (existingBPIcon) existingBPIcon.remove();
+
+            const existingBPAdd = document.querySelector('[data-luatools-bp="add"]');
+            if (existingBPAdd) existingBPAdd.remove();
+
             // Ensure translations are loaded and update existing buttons
             ensureTranslationsLoaded(false).then(function() {
                 updateButtonTranslations();
             });
         }
-        
+
+        // DUPLICATE BUTTONS FOR BIG PICTURE MODE (inject next to #queueBtnFollow)
+        const queueBtn = document.querySelector('#queueBtnFollow');
+        if (queueBtn) {
+            // Check if we need to inject the buttons
+            const bpRestartExists = document.querySelector('[data-luatools-bp="restart"]');
+            const bpIconExists = document.querySelector('[data-luatools-bp="icon"]');
+
+            // Only inject Restart and Icon buttons if they don't exist
+            if (!bpRestartExists && !bpIconExists) {
+                backendLog('LuaTools: Injecting Restart and Icon buttons for Big Picture mode');
+
+                // Clone the exact same button creation logic but with different selectors
+                // This way they function identically to the top buttons
+
+                // 1. Restart Steam Button
+            const restartDiv = document.createElement('div');
+            restartDiv.className = 'queue_control_button';
+            restartDiv.setAttribute('data-luatools-bp', 'restart');
+
+            const restartBtn = document.createElement('button');
+            restartBtn.className = 'btnv6_blue_hoverfade btn_medium queue_btn_inactive luatools-restart-button-bp';
+
+            const restartSpan = document.createElement('span');
+            restartSpan.textContent = lt('Restart Steam');
+
+            restartBtn.appendChild(restartSpan);
+            restartDiv.appendChild(restartBtn);
+
+            restartBtn.addEventListener('click', function(e){
+                e.preventDefault();
+                try {
+                    closeSettingsOverlay();
+                    showLuaToolsConfirm('LuaTools', lt('Restart Steam now?'),
+                        function() { try { Millennium.callServerMethod('luatools', 'RestartSteam', { contentScriptQuery: '' }); } catch(_) {} },
+                        function() { /* Cancel - do nothing */ }
+                    );
+                } catch(_) {
+                    showLuaToolsConfirm('LuaTools', lt('Restart Steam now?'),
+                        function() { try { Millennium.callServerMethod('luatools', 'RestartSteam', { contentScriptQuery: '' }); } catch(_) {} },
+                        function() { /* Cancel - do nothing */ }
+                    );
+                }
+            });
+
+            // 2. Icon/Menu Button (exact same as top button)
+            const iconDiv = document.createElement('div');
+            iconDiv.className = 'queue_control_button';
+            iconDiv.setAttribute('data-luatools-bp', 'icon');
+
+            const iconBtn = document.createElement('button');
+            iconBtn.className = 'btnv6_blue_hoverfade btn_medium queue_btn_inactive luatools-icon-button-bp';
+
+            const iconSpan = document.createElement('span');
+            const img = document.createElement('img');
+            img.alt = '';
+            img.style.height = '16px';
+            img.style.width = '16px';
+            img.style.verticalAlign = 'middle';
+
+            // Try to fetch data URL for the icon from backend (same as top button)
+            try {
+                Millennium.callServerMethod('luatools', 'GetIconDataUrl', { contentScriptQuery: '' }).then(function(res){
+                    try {
+                        const payload = typeof res === 'string' ? JSON.parse(res) : res;
+                        if (payload && payload.success && payload.dataUrl) {
+                            img.src = payload.dataUrl;
+                        } else {
+                            img.src = 'LuaTools/luatools-icon.png';
+                        }
+                    } catch(_) { img.src = 'LuaTools/luatools-icon.png'; }
+                });
+            } catch(_) {
+                img.src = 'LuaTools/luatools-icon.png';
+            }
+
+            // If image fails, fallback to inline SVG gear (same as top button)
+            img.onerror = function(){
+                iconSpan.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M12 8a4 4 0 100 8 4 4 0 000-8zm9.94 3.06l-2.12-.35a7.962 7.962 0 00-1.02-2.46l1.29-1.72a.75.75 0 00-.09-.97l-1.41-1.41a.75.75 0 00-.97-.09l-1.72 1.29c-.77-.44-1.6-.78-2.46-1.02L13.06 2.06A.75.75 0 0012.31 2h-1.62a.75.75 0 00-.75.65l-.35 2.12a7.962 7.962 0 00-2.46 1.02L5 4.6a.75.75 0 00-.97.09L2.62 6.1a.75.75 0 00-.09.97l1.29 1.72c-.44.77-.78 1.6-1.02 2.46l-2.12.35a.75.75 0 00-.65.75v1.62c0 .37.27.69.63.75l2.14.36c.24.86.58 1.69 1.02 2.46L2.53 18a.75.75 0 00.09.97l1.41 1.41c.26.26.67.29.97.09l1.72-1.29c.77.44 1.6.78 2.46 1.02l.35 2.12c.06.36.38.63.75.63h1.62c.37 0 .69-.27.75-.63l.36-2.14c.86-.24 1.69-.58 2.46-1.02l1.72 1.29c.3.2.71.17.97-.09l1.41-1.41c.26-.26.29-.67.09-.97l-1.29-1.72c.44-.77.78-1.6 1.02-2.46l2.12-.35c.36-.06.63-.38.63-.75v-1.62a.75.75 0 00-.65-.75z"/></svg>';
+            };
+
+            iconSpan.appendChild(img);
+            iconBtn.appendChild(iconSpan);
+            iconDiv.appendChild(iconBtn);
+
+                iconBtn.addEventListener('click', function(e){
+                    e.preventDefault();
+                    backendLog('LuaTools settings button clicked (BP)');
+                    showSettingsPopup();
+                });
+
+                // Insert Restart and Icon buttons (these are always shown)
+                queueBtn.insertAdjacentElement('afterend', iconDiv);
+                queueBtn.insertAdjacentElement('afterend', restartDiv);
+
+                backendLog('LuaTools: BP Restart and Icon buttons injected successfully');
+            }
+
+            // 3. Add via LuaTools Button (handled separately, always check if needed)
+            const match = window.location.href.match(/\/app\/(\d+)/);
+            const appid = match ? parseInt(match[1], 10) : NaN;
+
+            // Prevent multiple simultaneous checks for BP Add button
+            if (!isNaN(appid) && typeof Millennium !== 'undefined' && typeof Millennium.callServerMethod === 'function') {
+                // Use same presence check system as top buttons
+                if (window.__LuaToolsPresenceCheckInFlightBP && window.__LuaToolsPresenceCheckAppIdBP === appid) {
+                    backendLog('LuaTools: BP Add button check already in progress for appid ' + appid);
+                } else {
+                    window.__LuaToolsPresenceCheckInFlightBP = true;
+                    window.__LuaToolsPresenceCheckAppIdBP = appid;
+
+                    Millennium.callServerMethod('luatools', 'HasLuaToolsForApp', { appid, contentScriptQuery: '' }).then(function(res){
+                        try {
+                            const payload = typeof res === 'string' ? JSON.parse(res) : res;
+                            const gameExists = payload && payload.success && payload.exists === true;
+
+                            // Re-check if button exists (may have been created/removed during async call)
+                            const currentBpAddExists = document.querySelector('[data-luatools-bp="add"]');
+
+                            if (gameExists && currentBpAddExists) {
+                                // Game exists and button is showing - remove it
+                                currentBpAddExists.remove();
+                                backendLog('LuaTools: BP Add button removed (game exists)');
+                            } else if (!gameExists && !currentBpAddExists) {
+                                // Game doesn't exist and button is not showing - create it
+                                const addDiv = document.createElement('div');
+                                addDiv.className = 'queue_control_button';
+                                addDiv.setAttribute('data-luatools-bp', 'add');
+
+                                const addBtn = document.createElement('button');
+                                addBtn.className = 'btnv6_blue_hoverfade btn_medium queue_btn_inactive luatools-button-bp';
+
+                                const addSpan = document.createElement('span');
+                                addSpan.textContent = lt('Add via LuaTools');
+
+                                addBtn.appendChild(addSpan);
+                                addDiv.appendChild(addBtn);
+
+                                // Use delegated click handler (same as top button)
+                                addBtn.addEventListener('click', function(e) {
+                                    e.preventDefault();
+                                    backendLog('LuaTools button clicked (BP - delegated handler will process)');
+                                });
+
+                                // Insert Add button
+                                const currentQueueBtn = document.querySelector('#queueBtnFollow');
+                                if (currentQueueBtn) {
+                                    currentQueueBtn.insertAdjacentElement('afterend', addDiv);
+                                    backendLog('LuaTools: BP Add button inserted');
+                                }
+                            }
+
+                            window.__LuaToolsPresenceCheckInFlightBP = false;
+                        } catch(_) {
+                            window.__LuaToolsPresenceCheckInFlightBP = false;
+                        }
+                    }).catch(function() {
+                        window.__LuaToolsPresenceCheckInFlightBP = false;
+                    });
+                }
+            }
+        }
+
         // Look for the SteamDB buttons container
-        const steamdbContainer = document.querySelector('.steamdb-buttons') || 
+        const steamdbContainer = document.querySelector('.steamdb-buttons') ||
                                 document.querySelector('[data-steamdb-buttons]') ||
                                 document.querySelector('.apphub_OtherSiteInfo');
 
@@ -2250,9 +2449,12 @@
     
     // Delegate click handling in case the DOM is re-rendered and listeners are lost
     document.addEventListener('click', function(evt) {
-        const anchor = evt.target && (evt.target.closest ? evt.target.closest('.luatools-button') : null);
+        // Check for both top buttons (.luatools-button) and BP buttons (.luatools-button-bp)
+        const anchor = evt.target && (evt.target.closest ?
+            (evt.target.closest('.luatools-button') || evt.target.closest('.luatools-button-bp')) : null);
         if (anchor) {
             evt.preventDefault();
+
             backendLog('LuaTools delegated click');
             // Use the same loading modal on delegated clicks
             if (!document.querySelector('.luatools-overlay')) {
@@ -2333,10 +2535,19 @@
                             }
                             done = true; clearInterval(timer);
                             runState.inProgress = false; runState.appid = null;
+
+                            // Show success alert
+                            ShowLuaToolsAlert('LuaTools', lt('Game added!'));
+
                             // remove button since game is added (works even if popup is hidden)
+                            // Remove both top and BP buttons
                             const btnEl = document.querySelector('.luatools-button');
                             if (btnEl && btnEl.parentElement) {
                                 btnEl.parentElement.removeChild(btnEl);
+                            }
+                            const btnElBP = document.querySelector('[data-luatools-bp="add"]');
+                            if (btnElBP && btnElBP.parentElement) {
+                                btnElBP.parentElement.removeChild(btnElBP);
                             }
                         }
                         if (st.status === 'failed'){
@@ -2351,6 +2562,9 @@
                             if (percent) percent.style.display = 'none';
                             done = true; clearInterval(timer);
                             runState.inProgress = false; runState.appid = null;
+
+                            // Show error alert
+                            ShowLuaToolsAlert('LuaTools', lt('Failed: {error}').replace('{error}', st.error || lt('Unknown error')));
                         }
                     } catch(_){ }
                 });
